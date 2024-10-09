@@ -466,14 +466,14 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
 	/* This order is the elegant way. Inc ref first so it will not be added to
 	page_free_list*/
-	pp->pp_ref++;
-	page_remove(pgdir, va);
 	pte_t *pte = pgdir_walk(pgdir, va, 1);
-	*pte = page2pa(pp) | perm | PTE_P;
 	if (!pte)
 	{
 		return -E_NO_MEM;
 	}
+	pp->pp_ref++;
+	page_remove(pgdir, va);
+	*pte = page2pa(pp) | perm | PTE_P;
 	return 0;
 }
 
