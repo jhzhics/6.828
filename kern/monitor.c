@@ -28,7 +28,8 @@ static struct Command commands[] = {
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "showmappings", "Display physical page mappings for a range of virtual addresses", mon_showmappings },
 	{ "setperm", "Set permissions of a mapping", mon_setperm },
-	{ "dump", "Dump memory contents for a range of addresses", mon_dump }
+	{ "dump", "Dump memory contents for a range of addresses", mon_dump },
+	{ "backtrace", "Display a backtrace of the current stack", mon_backtrace },
 };
 
 int

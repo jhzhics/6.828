@@ -22,6 +22,10 @@ sys_cputs(const char *s, size_t len)
 
 	// LAB 3: Your code here.
 
+	if (envs[ENVX(curenv->env_id)].env_tf.tf_cs & 3) {
+		user_mem_assert(curenv, s, len, PTE_U);
+	}
+
 	// Print the string supplied by the user.
 	cprintf("%.*s", len, s);
 }
