@@ -46,24 +46,42 @@
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
  */
-TRAPHANDLER(trap_divide, T_DIVIDE)		// divide error
-TRAPHANDLER(trap_debug, T_DEBUG)		// debug exception
-TRAPHANDLER(intr_nmi, T_NMI)			// non-maskable interrupt
-TRAPHANDLER(trap_brkpt, T_BRKPT)		// breakpoint
-TRAPHANDLER(trap_oflow, T_OFLOW)		// overflow
-TRAPHANDLER(trap_bound, T_BOUND)		// bounds check
-TRAPHANDLER(trap_illop, T_ILLOP)		// illegal opcode
-TRAPHANDLER(intr_device, T_DEVICE)		// device not available
+
+// Divide error                       0            No
+// Debug exceptions                   1            No
+// Breakpoint                         3            No
+// Overflow                           4            No
+// Bounds check                       5            No
+// Invalid opcode                     6            No
+// Coprocessor not available          7            No
+// System error                       8            Yes (always 0)
+// Coprocessor Segment Overrun        9            No
+// Invalid TSS                       10            Yes
+// Segment not present               11            Yes
+// Stack exception                   12            Yes
+// General protection fault          13            Yes
+// Page fault                        14            Yes
+// Coprocessor error                 16            No
+// Two-byte SW interrupt             0-255         No
+
+TRAPHANDLER_NOEC(trap_divide, T_DIVIDE)		// divide error
+TRAPHANDLER_NOEC(trap_debug, T_DEBUG)		// debug exception
+TRAPHANDLER_NOEC(intr_nmi, T_NMI)			// non-maskable interrupt
+TRAPHANDLER_NOEC(trap_brkpt, T_BRKPT)		// breakpoint
+TRAPHANDLER_NOEC(trap_oflow, T_OFLOW)		// overflow
+TRAPHANDLER_NOEC(trap_bound, T_BOUND)		// bounds check
+TRAPHANDLER_NOEC(trap_illop, T_ILLOP)		// illegal opcode
+TRAPHANDLER_NOEC(intr_device, T_DEVICE)		// device not available
 TRAPHANDLER(trap_dblflt, T_DBLFLT)		// double fault
 TRAPHANDLER(trap_tss, T_TSS)			// invalid task switch segment
 TRAPHANDLER(trap_segnp, T_SEGNP)		// segment not present
 TRAPHANDLER(trap_stack, T_STACK)		// stack exception
 TRAPHANDLER(trap_gpflt, T_GPFLT)		// general protection fault
 TRAPHANDLER(trap_pgflt, T_PGFLT)		// page fault
-TRAPHANDLER(trap_fperr, T_FPERR)		// floating point error
-TRAPHANDLER(trap_align, T_ALIGN)		// alignment check
-TRAPHANDLER(trap_mchk, T_MCHK)		// machine check
-TRAPHANDLER(trap_simderr, T_SIMDERR)	// SIMD floating point error
+TRAPHANDLER_NOEC(trap_fperr, T_FPERR)		// floating point error
+TRAPHANDLER_NOEC(trap_align, T_ALIGN)		// alignment check
+TRAPHANDLER_NOEC(trap_mchk, T_MCHK)		// machine check
+TRAPHANDLER_NOEC(trap_simderr, T_SIMDERR)	// SIMD floating point error
 TRAPHANDLER_NOEC(trap_syscall, T_SYSCALL)	// system call
 TRAPHANDLER_NOEC(trap_default, T_DEFAULT)	// catchall
 
