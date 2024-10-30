@@ -173,7 +173,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	struct Eipdebuginfo eip_debuginfo;
 	uint32_t args[5];
-	uint32_t ebp = read_ebp();
+	uint32_t ebp = tf->tf_regs.reg_ebp;
 	while (ebp)
 	{
 		uint32_t eip = *((uint32_t *)ebp + 1);
