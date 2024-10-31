@@ -281,7 +281,7 @@ region_alloc(struct Env *e, void *va, size_t len)
 	void *va_end = ROUNDUP(va + len, PGSIZE);
 	assert(va_begin < va_end && "region_alloc: invalid va range");
 	for (void *va_cur = va_begin; va_cur < va_end; va_cur += PGSIZE) {
-		struct PageInfo *pp = page_alloc(0);
+		struct PageInfo *pp = page_alloc(ALLOC_ZERO);
 		if (!pp) {
 			panic("region_alloc: page_alloc failed");
 		}
