@@ -171,33 +171,31 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
-	struct Eipdebuginfo eip_debuginfo;
+	cprintf("Stack backtrace:\n");
 	uint32_t args[5];
-	uint32_t ebp = tf->tf_regs.reg_ebp;
+	uint32_t *ebp;
+	asm volatile("movl %%ebp,%0" : "=r" (ebp));
 	while (ebp)
 	{
-		uint32_t eip = *((uint32_t *)ebp + 1);
-		args[0] = *((uint32_t *)ebp + 2);
-		args[1] = *((uint32_t *)ebp + 3);
-		args[2] = *((uint32_t *)ebp + 4);
-		args[3] = *((uint32_t *)ebp + 5);
-		args[4] = *((uint32_t *)ebp + 6);
-
-		debuginfo_eip(eip, &eip_debuginfo);
-		
-			cprintf("  ebp %08x  eip %08x  args \
+		uint32_t eip = ebp[1];
+		args[0] = ebp[2];
+		args[1] = ebp[3];
+		args[2] = ebp[4];
+		args[3] = ebp[5];
+		args[4] = ebp[6];
+		struct Eipdebuginfo eip_debuginfo;
+		cprintf("  ebp %08x  eip %08x  args \
 %08x %08x %08x %08x %08x\n",
 	ebp, eip,
 	args[0], args[1], args[2], args[3], args[4]);
-
+        debuginfo_eip(eip, &eip_debuginfo);
 		cprintf("         %s:%d: %.*s+%d\n",
 		eip_debuginfo.eip_file,
 		eip_debuginfo.eip_line,
 		eip_debuginfo.eip_fn_namelen,
 		eip_debuginfo.eip_fn_name,
 		eip - (uint32_t)eip_debuginfo.eip_fn_addr);
-
-		ebp = *(uint32_t *)ebp;
+		ebp = (uint32_t *)*ebp;
 	}
 	return 0;
 }
