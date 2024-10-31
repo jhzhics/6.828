@@ -30,7 +30,33 @@ static struct Command commands[] = {
 	{ "setperm", "Set permissions of a mapping", mon_setperm },
 	{ "dump", "Dump memory contents for a range of addresses", mon_dump },
 	{ "backtrace", "Display a backtrace of the current stack", mon_backtrace },
+	{ "si", "Single step the program", mon_si },
+	{ "continue", "Continue execution", mon_continue }
 };
+
+int mon_si(int argc, char **argv, struct Trapframe *tf)
+{
+	if (tf->tf_trapno != T_DEBUG && tf->tf_trapno != T_BRKPT)
+	{
+		cprintf("Not in a debug state\n");
+		return 0;
+	}
+	cprintf("Single stepping...\n");
+	tf->tf_eflags |= FL_TF; // set trap flag
+	return -1;
+}
+
+int mon_continue(int argc, char **argv, struct Trapframe *tf)
+{
+	if (tf->tf_trapno != T_DEBUG && tf->tf_trapno != T_BRKPT)
+	{
+		cprintf("Not in a debug state\n");
+		return 0;
+	}
+	cprintf("Continuing execution...\n");
+	tf->tf_eflags &= ~FL_TF; // clear trap flag
+	return -1;
+}
 
 int
 mon_dump(int argc, char **argv, struct Trapframe *tf)
