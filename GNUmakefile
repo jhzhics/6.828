@@ -93,6 +93,8 @@ CFLAGS += -Wall -Wno-format -Wno-unused -Werror -gstabs -m32
 # -fno-tree-ch prevented gcc from sometimes reordering read_ebp() before
 # mon_backtrace()'s function prologue on gcc version: (Debian 4.7.2-5) 4.7.2
 CFLAGS += -fno-tree-ch
+CFLAGS += -O0 -g
+
 
 # Add -fno-stack-protector if the option exists.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
@@ -125,7 +127,7 @@ all:
 KERN_CFLAGS := $(CFLAGS) -DJOS_KERNEL -gstabs
 USER_CFLAGS := $(CFLAGS) -DJOS_USER -gstabs
 
-# Update .vars.X if variable X has changed since the last make run.
+# Update .vars.X if variable X has changed since the last make run.qe
 #
 # Rules that use variable X should depend on $(OBJDIR)/.vars.X.  If
 # the variable's value has changed, this will update the vars file and
@@ -156,6 +158,9 @@ QEMUOPTS += $(QEMUEXTRA)
 
 gdb:
 	$(GDB) -n -x .gdbinit
+
+pwndbg:
+	pwndbg -n -x .gdbinit
 
 pre-qemu: .gdbinit
 
@@ -207,7 +212,7 @@ grade:
 	@echo $(MAKE) clean
 	@$(MAKE) clean || \
 	  (echo "'make clean' failed.  HINT: Do you have another running instance of JOS?" && exit 1)
-	./grade-lab$(LAB) $(GRADEFLAGS)
+	python3 grade-lab$(LAB) $(GRADEFLAGS)
 
 git-handin: handin-check
 	@if test -n "`git config remote.handin.url`"; then \

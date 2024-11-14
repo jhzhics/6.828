@@ -10,6 +10,13 @@
 #include <kern/trap.h>
 #include <kern/picirq.h>
 
+#define DEFAULT_FG_COLOR 0x07
+#define DEFAULT_BG_COLOR 0x00
+
+static uint8_t console_fg_color = 0x07;	// light gray
+static uint8_t console_bg_color = 0x00;	// black
+
+
 static void cons_intr(int (*proc)(void));
 static void cons_putc(int c);
 
@@ -131,6 +138,25 @@ static unsigned addr_6845;
 static uint16_t *crt_buf;
 static uint16_t crt_pos;
 
+static uint8_t ansi_color_map[256] = {
+    [30] = 0,  // Black
+    [34] = 1,  // Blue
+    [32] = 2,  // Green
+    [36] = 3,  // Cyan
+    [31] = 4,  // Red
+    [35] = 5,  // Magenta
+    [33] = 6,  // Brown (interpreted as Brown)
+    [37] = 7,  // Light Gray
+    [90] = 8,  // Dark Gray (Bright Black)
+    [94] = 9,  // Light Blue
+    [92] = 10, // Light Green
+    [96] = 11, // Light Cyan
+    [91] = 12, // Light Red
+    [95] = 13, // Light Magenta
+    [93] = 14, // Yellow (Bright Yellow)
+    [97] = 15  // White (Bright White)
+};
+
 static void
 cga_init(void)
 {
@@ -159,57 +185,56 @@ cga_init(void)
 	crt_pos = pos;
 }
 
-
-
 static void
-cga_putc(int c)
+cga_putc(int c, uint8_t fg_color, uint8_t bg_color)
 {
-	// if no attribute given, then use black on white
-	if (!(c & ~0xFF))
-		c |= 0x0700;
+    // Combine foreground and background colors into the attribute byte
+    uint16_t attribute = ((bg_color & 0xF) << 4) | (fg_color & 0xF);
 
-	switch (c & 0xff) {
-	case '\b':
-		if (crt_pos > 0) {
-			crt_pos--;
-			crt_buf[crt_pos] = (c & ~0xff) | ' ';
-		}
-		break;
-	case '\n':
-		crt_pos += CRT_COLS;
-		/* fallthru */
-	case '\r':
-		crt_pos -= (crt_pos % CRT_COLS);
-		break;
-	case '\t':
-		cons_putc(' ');
-		cons_putc(' ');
-		cons_putc(' ');
-		cons_putc(' ');
-		cons_putc(' ');
-		break;
-	default:
-		crt_buf[crt_pos++] = c;		/* write the character */
-		break;
-	}
+    // If no character given, use space with the specified colors
+    if (!(c & ~0xFF))
+        c |= (attribute << 8);
 
-	// What is the purpose of this?
-	if (crt_pos >= CRT_SIZE) {
-		int i;
+    switch (c & 0xff) {
+    case '\b':
+        if (crt_pos > 0) {
+            crt_pos--;
+            crt_buf[crt_pos] = (attribute << 8) | ' ';
+        }
+        break;
+    case '\n':
+        crt_pos += CRT_COLS;
+        /* fallthru */
+    case '\r':
+        crt_pos -= (crt_pos % CRT_COLS);
+        break;
+    case '\t':
+        cga_putc(' ', fg_color, bg_color);
+        cga_putc(' ', fg_color, bg_color);
+        cga_putc(' ', fg_color, bg_color);
+        cga_putc(' ', fg_color, bg_color);
+        cga_putc(' ', fg_color, bg_color);
+        break;
+    default:
+        crt_buf[crt_pos++] = (attribute << 8) | (c & 0xFF);  // write the character with the attribute
+        break;
+    }
 
-		memmove(crt_buf, crt_buf + CRT_COLS, (CRT_SIZE - CRT_COLS) * sizeof(uint16_t));
-		for (i = CRT_SIZE - CRT_COLS; i < CRT_SIZE; i++)
-			crt_buf[i] = 0x0700 | ' ';
-		crt_pos -= CRT_COLS;
-	}
+    if (crt_pos >= CRT_SIZE) {
+        int i;
 
-	/* move that little blinky thing */
-	outb(addr_6845, 14);
-	outb(addr_6845 + 1, crt_pos >> 8);
-	outb(addr_6845, 15);
-	outb(addr_6845 + 1, crt_pos);
+        memmove(crt_buf, crt_buf + CRT_COLS, (CRT_SIZE - CRT_COLS) * sizeof(uint16_t));
+        for (i = CRT_SIZE - CRT_COLS; i < CRT_SIZE; i++)
+            crt_buf[i] = (attribute << 8) | ' ';
+        crt_pos -= CRT_COLS;
+    }
+
+    /* move that little blinky thing */
+    outb(addr_6845, 14);
+    outb(addr_6845 + 1, crt_pos >> 8);
+    outb(addr_6845, 15);
+    outb(addr_6845 + 1, crt_pos);
 }
-
 
 /***** Keyboard input code *****/
 
@@ -433,14 +458,81 @@ cons_getc(void)
 	return 0;
 }
 
+
+void
+parse_apply_ansi_buf(char const ansi_buf[])
+{
+/*
+For simplicity, we only support 2 syntax:
+\033[<fg_color_code>m		//set fg color
+\033[<fg_color_code>;<bg_color_code>;m		//set both fg and bg color
+\033[0m							//reset fg and bg color
+*/
+	assert(strlen(ansi_buf) && ansi_buf[0] == '[');
+    if (strcmp(ansi_buf, "[0") == 0) {
+        // Reset colors
+        console_fg_color = DEFAULT_FG_COLOR;
+        console_bg_color = DEFAULT_BG_COLOR;
+    } else {
+        // Parse the color codes
+        char *endptr;
+        int fg_color = strtol(ansi_buf+1, &endptr, 10);
+        if (*endptr == ';') {
+            // Both foreground and background colors are specified
+            int bg_color = strtol(endptr + 1, NULL, 10);
+            console_fg_color = ansi_color_map[fg_color];
+            console_bg_color = ansi_color_map[bg_color];
+        } else {
+            // Only foreground color is specified
+            console_fg_color = ansi_color_map[fg_color];
+        }
+    }	
+}
+
 // output a character to the console
 static void
 cons_putc(int c)
 {
-	serial_putc(c);
-	lpt_putc(c);
-	cga_putc(c);
+	static int ansi_mode = 0;
+	static char ansi_buf[256];
+	static int ansi_buf_index = 0;
+
+	if(ansi_mode && c == 'm')
+	{
+		ansi_buf[ansi_buf_index] = 0;
+		ansi_buf_index = 0;
+		ansi_mode = 0;
+		parse_apply_ansi_buf(ansi_buf);
+		return;
+	}
+	else if (!ansi_mode && c == '\033')
+	{
+		ansi_mode = 1;
+		return;
+	}
+
+	if(!ansi_mode)
+	{
+
+		serial_putc(c);
+		lpt_putc(c);
+		cga_putc(c, console_fg_color, console_bg_color);
+	}
+	else
+	{
+		ansi_buf[ansi_buf_index++] = c;
+		assert(ansi_buf_index < 256);
+	}
 }
+
+// output a character to the console
+// static void
+// cons_putc(int c)
+// {
+// 	serial_putc(c);
+// 	lpt_putc(c);
+// 	cga_putc(c, console_fg_color, console_bg_color);
+// }
 
 // initialize the console devices
 void
