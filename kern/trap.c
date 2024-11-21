@@ -13,6 +13,7 @@
 #include <kern/picirq.h>
 #include <kern/cpu.h>
 #include <kern/spinlock.h>
+#include <kern/pmap.h>
 
 static struct Taskstate ts;
 
@@ -376,11 +377,42 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
+	if(curenv->env_pgfault_upcall == NULL)
+	{
+		goto flag_destroy;
+	}
 
+  struct UTrapframe *utrapframe;
+	if(tf->tf_esp < UXSTACKTOP && tf->tf_esp >= UXSTACKTOP-PGSIZE)
+	{
+		utrapframe = (struct UTrapframe *)(tf->tf_esp - 32 - sizeof(struct UTrapframe));
+		user_mem_assert(curenv, (void *)utrapframe, sizeof(struct UTrapframe), PTE_W);
+		*(int32_t *)(tf->tf_esp - 32) = 0;
+	}
+	else
+	{
+		utrapframe = (struct UTrapframe *)(UXSTACKTOP - sizeof(struct UTrapframe));
+		user_mem_assert(curenv, (void *)utrapframe, sizeof(struct UTrapframe), PTE_W);
+	}
+
+
+	utrapframe->utf_eflags = tf->tf_eflags;
+	utrapframe->utf_eip = tf->tf_eip;
+	utrapframe->utf_err = tf->tf_err;
+	utrapframe->utf_esp = tf->tf_esp;
+	utrapframe->utf_regs = tf->tf_regs;
+	utrapframe->utf_fault_va = fault_va;
+	
+	tf->tf_esp = (uintptr_t)utrapframe;
+	tf->tf_eip = (uintptr_t)curenv->env_pgfault_upcall;
+	env_run(curenv);
+
+flag_destroy:
 	// Destroy the environment that caused the fault.
 	cprintf("[%08x] user fault va %08x ip %08x\n",
 		curenv->env_id, fault_va, tf->tf_eip);
 	print_trapframe(tf);
 	env_destroy(curenv);
+
 }
 

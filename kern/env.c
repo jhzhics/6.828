@@ -541,6 +541,7 @@ env_run(struct Env *e)
 		}
 	}
 	curenv = e;
+	pde_t *pde = pgdir_walk(e->env_pgdir, (void *)UENVS, 0);
 	curenv->env_status = ENV_RUNNING;
 	curenv->env_runs++;
 	lcr3(PADDR(curenv->env_pgdir));
