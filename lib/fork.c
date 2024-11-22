@@ -184,8 +184,6 @@ fork(void)
 	}
 	else
 	{
-		envid_t thisenvid = sys_getenvid();
-		thisenv = &envs[ENVX(thisenvid)];
 	}
 	return child_envid;
 }
@@ -194,6 +192,54 @@ fork(void)
 int
 sfork(void)
 {
-	panic("sfork not implemented");
-	return -E_INVAL;
+	set_pgfault_handler(pgfault);
+	envid_t child_envid = sys_exofork();
+	if(child_envid)
+	{
+		//parent
+		volatile const struct Env *child_env = &envs[ENVX(child_envid)];
+		for(uintptr_t va = 0; va < UTOP; va += PGSIZE)
+		{
+			if (va == UXSTACKTOP - PGSIZE)
+			{
+				int err = sys_page_alloc(child_envid, (void *)va, PTE_U | PTE_P | PTE_W);
+				if(err < 0)
+				{
+					panic("sys_page_alloc panic");
+				}
+				continue;
+			}
+			if(va == USTACKTOP - PGSIZE)
+			{
+				int err = duppage(child_envid, va >> PGSHIFT);
+				if(err < 0)
+				{
+					panic("duppage panic");
+				}
+				continue;
+			}
+
+			if (!(uvpd[PDX(va)] & PTE_P))
+			{
+				continue;
+			}
+
+			pte_t pte = uvpt[PGNUM(va)];
+			if(pte & PTE_P)
+			{
+				int err = sys_page_map(thisenv->env_id, (void *)va, child_envid, 
+				(void *)va, pte & 0xfff);
+				if(err)
+				{
+					panic("sys_page_map panic");
+				}
+			}
+		}
+		sys_env_set_pgfault_upcall(child_envid, thisenv->env_pgfault_upcall);
+		sys_env_set_status(child_envid, ENV_RUNNABLE);
+	}
+	else
+	{
+	}
+	return child_envid;
 }
