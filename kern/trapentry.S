@@ -86,6 +86,24 @@ TRAPHANDLER_NOEC(trap_simderr, T_SIMDERR)	// SIMD floating point error
 TRAPHANDLER_NOEC(trap_syscall, T_SYSCALL)	// system call
 TRAPHANDLER_NOEC(trap_default, T_DEFAULT)	// catchall
 
+TRAPHANDLER_NOEC(trap_irq0, IRQ_OFFSET + 0)
+TRAPHANDLER_NOEC(trap_irq1, IRQ_OFFSET + 1)
+TRAPHANDLER_NOEC(trap_irq2, IRQ_OFFSET + 2)
+TRAPHANDLER_NOEC(trap_irq3, IRQ_OFFSET + 3)
+TRAPHANDLER_NOEC(trap_irq4, IRQ_OFFSET + 4)
+TRAPHANDLER_NOEC(trap_irq5, IRQ_OFFSET + 5)
+TRAPHANDLER_NOEC(trap_irq6, IRQ_OFFSET + 6)
+TRAPHANDLER_NOEC(trap_irq7, IRQ_OFFSET + 7)
+TRAPHANDLER_NOEC(trap_irq8, IRQ_OFFSET + 8)
+TRAPHANDLER_NOEC(trap_irq9, IRQ_OFFSET + 9)
+TRAPHANDLER_NOEC(trap_irq10, IRQ_OFFSET + 10)
+TRAPHANDLER_NOEC(trap_irq11, IRQ_OFFSET + 11)
+TRAPHANDLER_NOEC(trap_irq12, IRQ_OFFSET + 12)
+TRAPHANDLER_NOEC(trap_irq13, IRQ_OFFSET + 13)
+TRAPHANDLER_NOEC(trap_irq14, IRQ_OFFSET + 14)
+TRAPHANDLER_NOEC(trap_irq15, IRQ_OFFSET + 15)
+
+
 // #define T_DIVIDE     0		// divide error
 // #define T_DEBUG      1		// debug exception
 // #define T_NMI        2		// non-maskable interrupt
