@@ -93,6 +93,8 @@ CFLAGS += -Wall -Wno-format -Wno-unused -Werror -gstabs -m32
 # -fno-tree-ch prevented gcc from sometimes reordering read_ebp() before
 # mon_backtrace()'s function prologue on gcc version: (Debian 4.7.2-5) 4.7.2
 CFLAGS += -fno-tree-ch
+CFLAGS += -O0 -g
+
 
 # Add -fno-stack-protector if the option exists.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
@@ -125,7 +127,7 @@ all:
 KERN_CFLAGS := $(CFLAGS) -DJOS_KERNEL -gstabs
 USER_CFLAGS := $(CFLAGS) -DJOS_USER -gstabs
 
-# Update .vars.X if variable X has changed since the last make run.
+# Update .vars.X if variable X has changed since the last make run.qe
 #
 # Rules that use variable X should depend on $(OBJDIR)/.vars.X.  If
 # the variable's value has changed, this will update the vars file and
@@ -149,7 +151,7 @@ CPUS ?= 1
 QEMUOPTS = -drive file=$(OBJDIR)/kern/kernel.img,index=0,media=disk,format=raw -serial mon:stdio -gdb tcp::$(GDBPORT)
 QEMUOPTS += $(shell if $(QEMU) -nographic -help | grep -q '^-D '; then echo '-D qemu.log'; fi)
 IMAGES = $(OBJDIR)/kern/kernel.img
-QEMUOPTS += -smp $(CPUS)
+QEMUOPTS += -smp $(CPUS),sockets=$(CPUS)
 QEMUOPTS += -drive file=$(OBJDIR)/fs/fs.img,index=1,media=disk,format=raw
 IMAGES += $(OBJDIR)/fs/fs.img
 QEMUOPTS += $(QEMUEXTRA)
@@ -159,6 +161,9 @@ QEMUOPTS += $(QEMUEXTRA)
 
 gdb:
 	$(GDB) -n -x .gdbinit
+
+pwndbg:
+	pwndbg -n -x .gdbinit
 
 pre-qemu: .gdbinit
 
@@ -210,7 +215,7 @@ grade:
 	@echo $(MAKE) clean
 	@$(MAKE) clean || \
 	  (echo "'make clean' failed.  HINT: Do you have another running instance of JOS?" && exit 1)
-	./grade-lab$(LAB) $(GRADEFLAGS)
+	python3 grade-lab$(LAB) $(GRADEFLAGS)
 
 git-handin: handin-check
 	@if test -n "`git config remote.handin.url`"; then \
