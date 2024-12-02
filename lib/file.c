@@ -25,7 +25,9 @@ fsipc(unsigned type, void *dstva)
 		cprintf("[%08x] fsipc %d %08x\n", thisenv->env_id, type, *(uint32_t *)&fsipcbuf);
 
 	ipc_send(fsenv, type, &fsipcbuf, PTE_P | PTE_W | PTE_U);
-	return ipc_recv(NULL, dstva, NULL);
+	
+	int ret = ipc_recv(NULL, dstva, NULL);
+	return ret;
 }
 
 static int devfile_flush(struct Fd *fd);
@@ -141,7 +143,18 @@ devfile_write(struct Fd *fd, const void *buf, size_t n)
 	// remember that write is always allowed to write *fewer*
 	// bytes than requested.
 	// LAB 5: Your code here
-	panic("devfile_write not implemented");
+	int r;
+	fsipcbuf.write.req_fileid = fd->fd_file.id;
+	fsipcbuf.write.req_n = n;
+	memmove(fsipcbuf.write.req_buf, buf, 
+	n < sizeof(fsipcbuf.write.req_buf) ? n : sizeof(fsipcbuf.write.req_buf));
+	if((r = fsipc(FSREQ_WRITE, NULL)) < 0)
+	{
+		return r;
+	}
+	assert(r <= n);
+	assert(r <= PGSIZE);
+	return r;
 }
 
 static int
@@ -151,7 +164,9 @@ devfile_stat(struct Fd *fd, struct Stat *st)
 
 	fsipcbuf.stat.req_fileid = fd->fd_file.id;
 	if ((r = fsipc(FSREQ_STAT, NULL)) < 0)
+	{
 		return r;
+	}
 	strcpy(st->st_name, fsipcbuf.statRet.ret_name);
 	st->st_size = fsipcbuf.statRet.ret_size;
 	st->st_isdir = fsipcbuf.statRet.ret_isdir;

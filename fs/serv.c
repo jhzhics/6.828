@@ -65,7 +65,7 @@ int
 openfile_alloc(struct OpenFile **o)
 {
 	int i, r;
-
+	
 	// Find an available open-file table entry
 	for (i = 0; i < MAXOPEN; i++) {
 		switch (pageref(opentab[i].o_fd)) {
@@ -91,7 +91,9 @@ openfile_lookup(envid_t envid, uint32_t fileid, struct OpenFile **po)
 
 	o = &opentab[fileid % MAXOPEN];
 	if (pageref(o->o_fd) <= 1 || o->o_fileid != fileid)
+	{
 		return -E_INVAL;
+	}
 	*po = o;
 	return 0;
 }
@@ -209,12 +211,24 @@ serve_read(envid_t envid, union Fsipc *ipc)
 {
 	struct Fsreq_read *req = &ipc->read;
 	struct Fsret_read *ret = &ipc->readRet;
+	struct OpenFile *o;
 
 	if (debug)
 		cprintf("serve_read %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
 
-	// Lab 5: Your code here:
-	return 0;
+	int r;
+	if((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
+	{
+		return r;
+	}
+	int readn = file_read(o->o_file, ret->ret_buf, req->req_n, o->o_fd->fd_offset);
+	if(readn < 0)
+	{
+		return readn;
+	}
+	o->o_fd->fd_offset += readn;
+	
+	return readn;
 }
 
 
@@ -229,7 +243,19 @@ serve_write(envid_t envid, struct Fsreq_write *req)
 		cprintf("serve_write %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
 
 	// LAB 5: Your code here.
-	panic("serve_write not implemented");
+	struct OpenFile *o;
+	int r = openfile_lookup(envid, req->req_fileid, &o);
+	if(r < 0)
+	{
+		return r;
+	}
+	int writen = file_write(o->o_file, req->req_buf, req->req_n, o->o_fd->fd_offset);
+	if(writen < 0)
+	{
+		return writen;
+	}
+	o->o_fd->fd_offset += writen;
+	return writen;
 }
 
 // Stat ipc->stat.req_fileid.  Return the file's struct Stat to the

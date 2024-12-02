@@ -3,6 +3,9 @@
 
 #include "fs.h"
 
+// In fact it is aligned for File struct
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+
 struct Super *super;		// superblock
 uint32_t *bitmap;		// bitmap blocks mapped in memory
 
@@ -65,7 +68,17 @@ alloc_block(void)
 	// super->s_nblocks blocks in the disk altogether.
 
 	// LAB 5: Your code here.
-	panic("alloc_block not implemented");
+	uint32_t total_blocks = super->s_nblocks;
+	for(uint32_t blockno = 0; blockno < total_blocks; blockno++)
+	{
+		if(block_is_free(blockno))
+		{
+			bitmap[blockno/32] ^= 1<<(blockno%32);
+			flush_block(bitmap);
+			memset(diskaddr(blockno), 0, BLKSIZE);
+			return blockno;
+		}
+	}
 	return -E_NO_DISK;
 }
 
@@ -137,8 +150,42 @@ fs_init(void)
 static int
 file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)
 {
-       // LAB 5: Your code here.
-       panic("file_block_walk not implemented");
+	// LAB 5: Your code here.
+	if(f == NULL)
+	{
+		panic("f is NULL");
+	}
+	if(filebno >= NDIRECT + NINDIRECT)
+	{
+		return -E_INVAL;
+	}
+	if(filebno < NDIRECT)
+	{
+		if(ppdiskbno)
+		{
+			*ppdiskbno = &f->f_direct[filebno];
+		}
+		return 0;
+	}
+	if(f->f_indirect == 0 && !alloc)
+	{
+		return -E_NOT_FOUND;
+	}
+	if(f->f_indirect == 0)
+	{
+		uint32_t blockno = alloc_block();
+		if(blockno == -E_NO_DISK)
+		{
+			return -E_NO_DISK;
+		}
+		f->f_indirect = blockno;
+	}
+	if(ppdiskbno)
+	{
+		uint32_t *indrect_slots = diskaddr(f->f_indirect);
+		*ppdiskbno = &indrect_slots[filebno - NDIRECT];
+	}
+	return 0;
 }
 
 // Set *blk to the address in memory where the filebno'th
@@ -153,7 +200,35 @@ int
 file_get_block(struct File *f, uint32_t filebno, char **blk)
 {
        // LAB 5: Your code here.
-       panic("file_get_block not implemented");
+  if(f == NULL)
+	{
+		panic("f is NULL");
+	}
+	if(blk == NULL)
+	{
+		panic("blk is NULL");
+	}
+	uint32_t *block_slot;
+	int err = file_block_walk(f, filebno, &block_slot, true);
+	if(err < 0)
+	{
+		return err;
+	}
+	if(*block_slot)
+	{
+		*blk = diskaddr(*block_slot);
+	}
+	else
+	{
+		uint32_t blockno = alloc_block();
+		if(blockno == -E_NO_DISK)
+		{
+			return -E_NO_DISK;
+		}
+		*block_slot = blockno;
+		*blk = diskaddr(blockno);
+	}
+	return 0;
 }
 
 // Try to find a file named "name" in dir.  If so, set *file to it.
@@ -312,7 +387,8 @@ file_create(const char *path, struct File **pf)
 int
 file_open(const char *path, struct File **pf)
 {
-	return walk_path(path, 0, pf, 0);
+	int ret = walk_path(path, 0, pf, 0);
+	return ret;
 }
 
 // Read count bytes from f into buf, starting from seek position
@@ -324,7 +400,7 @@ file_read(struct File *f, void *buf, size_t count, off_t offset)
 	int r, bn;
 	off_t pos;
 	char *blk;
-
+	
 	if (offset >= f->f_size)
 		return 0;
 

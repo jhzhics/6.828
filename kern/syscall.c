@@ -380,16 +380,14 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	}
 	if((uintptr_t)srcva < UTOP && (uintptr_t)env->env_ipc_dstva < UTOP && !((uintptr_t)env->env_ipc_dstva % PGSIZE))
 	{
-		struct PageInfo *pp = page_alloc(ALLOC_ZERO);
-		if(!pp)
+		struct PageInfo *pp = page_lookup(curenv->env_pgdir, srcva, NULL);
+		if(pp == NULL)
 		{
-			return -E_NO_MEM;
+			return -E_INVAL;
 		}
-		memcpy(KADDR(page2pa(pp)), srcva, PGSIZE);
 		err = page_insert(env->env_pgdir, pp, env->env_ipc_dstva, perm);
-		if(err)
+		if(err < 0)
 		{
-			page_free(pp);
 			return err;
 		}
 		env->env_ipc_perm = perm;
