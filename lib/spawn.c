@@ -302,7 +302,26 @@ map_segment(envid_t child, uintptr_t va, size_t memsz,
 static int
 copy_shared_pages(envid_t child)
 {
-	// LAB 5: Your code here.
+	for(uintptr_t va = 0; va < UTOP; va += PGSIZE)
+	{
+		int pdx = PDX(va);
+		int pn = PGNUM(va);
+		pde_t pde = uvpd[pdx];
+		if(!(pde & PTE_P))
+		{
+			continue;
+		}
+		pte_t pte = uvpt[pn];
+		if(pte & PTE_SHARE)
+		{
+			int err = sys_page_map(thisenv->env_id, (void *)va, child,
+			(void *)va, pte & PTE_SYSCALL);
+			if(err < 0)
+			{
+				panic("sys_page_map fails in copy_shared_pages");
+			}
+		}
+	}
 	return 0;
 }
 

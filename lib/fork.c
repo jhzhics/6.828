@@ -53,7 +53,7 @@ pgfault(struct UTrapframe *utf)
 	}
 	memcpy((void *)PFTEMP, (void *)ROUNDDOWN(utf->utf_fault_va, PGSIZE), PGSIZE);
 	if(sys_page_map(envid, (void *)PFTEMP, envid, (void *)ROUNDDOWN(utf->utf_fault_va, PGSIZE),
-	(pte & 0xfff & ~PTE_COW) | PTE_W) < 0)
+	(pte & PTE_SYSCALL & ~PTE_COW) | PTE_W) < 0)
 	{
 		panic("sys_page_map error");
 	}
@@ -89,13 +89,22 @@ duppage(envid_t envid, unsigned pn)
 	}
 	pte_t pte = uvpt[PGNUM(va)];
 	int perm;
+	if(pte & PTE_SHARE)
+	{
+		int err = sys_page_map(curenvid, va, envid, va, pte & PTE_SYSCALL);
+		if(err < 0)
+		{
+			return err;
+		}
+		return 0;
+	}
 	if (pte & (PTE_W | PTE_COW))
 	{
-		perm = (pte & 0xfff & ~PTE_W) | PTE_COW;
+		perm = (pte & PTE_SYSCALL & ~PTE_W) | PTE_COW;
 	}
 	else
 	{
-		perm = pte & 0xfff;
+		perm = pte & PTE_SYSCALL;
 	}
 	
 	int err = sys_page_map(curenvid, va, envid, va, perm);
@@ -184,6 +193,8 @@ fork(void)
 	}
 	else
 	{
+		envid_t thisenvid = sys_getenvid();
+		thisenv = &envs[ENVX(thisenvid)];
 	}
 	return child_envid;
 }
@@ -192,54 +203,5 @@ fork(void)
 int
 sfork(void)
 {
-	set_pgfault_handler(pgfault);
-	envid_t child_envid = sys_exofork();
-	if(child_envid)
-	{
-		//parent
-		volatile const struct Env *child_env = &envs[ENVX(child_envid)];
-		for(uintptr_t va = 0; va < UTOP; va += PGSIZE)
-		{
-			if (va == UXSTACKTOP - PGSIZE)
-			{
-				int err = sys_page_alloc(child_envid, (void *)va, PTE_U | PTE_P | PTE_W);
-				if(err < 0)
-				{
-					panic("sys_page_alloc panic");
-				}
-				continue;
-			}
-			if(va == USTACKTOP - PGSIZE)
-			{
-				int err = duppage(child_envid, va >> PGSHIFT);
-				if(err < 0)
-				{
-					panic("duppage panic");
-				}
-				continue;
-			}
-
-			if (!(uvpd[PDX(va)] & PTE_P))
-			{
-				continue;
-			}
-
-			pte_t pte = uvpt[PGNUM(va)];
-			if(pte & PTE_P)
-			{
-				int err = sys_page_map(thisenv->env_id, (void *)va, child_envid, 
-				(void *)va, pte & 0xfff);
-				if(err)
-				{
-					panic("sys_page_map panic");
-				}
-			}
-		}
-		sys_env_set_pgfault_upcall(child_envid, thisenv->env_pgfault_upcall);
-		sys_env_set_status(child_envid, ENV_RUNNABLE);
-	}
-	else
-	{
-	}
-	return child_envid;
+	panic("In lab5, I restore thisenv because the count of env_runs check in pipe.c");
 }

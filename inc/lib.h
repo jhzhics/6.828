@@ -22,13 +22,13 @@
 #include <inc/args.h>
 
 #define USED(x)		(void)(x)
-#define thisenv (&envs[ENVX(sys_getenvid())])
 
 // main user program
 void	umain(int argc, char **argv);
 
 // libmain.c or entry.S
 extern const char *binaryname;
+extern const volatile struct Env *thisenv;
 extern const volatile struct Env envs[NENV];
 extern const volatile struct PageInfo pages[];
 
@@ -116,6 +116,9 @@ int	pipeisclosed(int pipefd);
 
 // wait.c
 void	wait(envid_t env);
+
+// exec.c
+void execl(const char *program, const char *arg0, ...);
 
 /* File open modes */
 #define	O_RDONLY	0x0000		/* open for reading only */
