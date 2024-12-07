@@ -117,3 +117,9 @@ sys_ipc_recv(void *dstva)
 	return syscall(SYS_ipc_recv, 1, (uint32_t)dstva, 0, 0, 0, 0);
 }
 
+int
+sys_execv(void *elf_buf, uint32_t elf_size, const char **argv)
+{
+	return syscall(SYS_execv, 0, (uint32_t)elf_buf, elf_size, (uint32_t)argv, 0, 0);
+}
+

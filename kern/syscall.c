@@ -4,6 +4,7 @@
 #include <inc/error.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/elf.h>
 
 #include <kern/env.h>
 #include <kern/pmap.h>
@@ -439,6 +440,123 @@ sys_ipc_recv(void *dstva)
 	return 0;
 }
 
+
+int sys_execv(void *elf_buf, uint32_t elf_size, const char **argv)
+{
+	static const int _elf_buf_size = 1048576;
+	static const int _argc_max = 12;
+	static const int _arg_maxlen = 127;
+	static char _elf_buf[1048576];
+	static char _argv_buf[12][128];
+
+// Move data to kernel
+	assert(elf_size <= _elf_buf_size);
+	memmove(_elf_buf, elf_buf, elf_size);
+	int argc = 0;
+	int string_size = 0;
+	for(argc = 0; argv[argc] != NULL;argc++)
+	{
+		if(argc >= _argc_max)
+		{
+			panic("error");
+		}
+		int arglen = strlen(argv[argc]);
+		if(arglen > _arg_maxlen)
+		{
+			panic("error");
+		}
+		string_size += arglen + 1;
+		memmove(_argv_buf[argc], argv[argc], arglen + 1);
+	}
+	if(string_size > PGSIZE / 2)
+	{
+		panic("error");
+	}
+// unmapp all pages that are not shared
+	for(void *va = 0; (uintptr_t)va < UTOP; va = (void *)((uintptr_t)va + PGSIZE))
+	{
+		int r = sys_page_unmap(curenv->env_id, va);
+		if(r < 0)
+		{
+			panic("error");
+		}
+	}
+
+
+//initialize stack
+	int r = sys_page_alloc(0, (void *)(USTACKTOP - PGSIZE), PTE_P | PTE_U | PTE_W);
+	char *string_store = (char *)USTACKTOP - string_size;
+	uintptr_t *argv_store = (uintptr_t *)(ROUNDDOWN(string_store, 4) - 4 * (argc + 1));
+
+	for(int i = 0;i < argc; i++)
+	{
+		int len = strlen(_argv_buf[i]);
+		argv_store[i] = (uintptr_t)string_store;
+		memmove(string_store, _argv_buf[i], len + 1);
+		string_store += len + 1;
+	}
+	argv_store[argc] = 0;
+	argv_store[-1] = (uintptr_t)argv_store;
+	argv_store[-2] = argc;
+	curenv->env_tf.tf_esp = (uintptr_t)&argv_store[-2];
+
+	
+// load elf file
+	struct Elf* elf = (struct Elf*)_elf_buf;
+	if(elf->e_magic != ELF_MAGIC)
+	{
+		panic("error");
+	}
+	struct Proghdr* ph = (struct Proghdr*)(_elf_buf + elf->e_phoff);
+	for (int i = 0; i < elf->e_phnum; i++, ph++) {
+		if (ph->p_type != ELF_PROG_LOAD)
+			continue;
+		int perm = PTE_P | PTE_U;
+		if (ph->p_flags & ELF_PROG_FLAG_WRITE)
+		{
+			perm |= PTE_W;
+		}
+		size_t memsz = ph->p_memsz;
+		uintptr_t va = ph->p_va;
+		size_t filesz = ph->p_filesz;
+		off_t fileoffset = ph->p_offset;
+		if((r = PGOFF((uint32_t)va)))
+		{
+			va -= r;
+			memsz += r;
+			filesz += r;
+			fileoffset -= r;
+		}
+		for(int j = 0; j < memsz; j += PGSIZE)
+		{
+			if ((r = sys_page_alloc(curenv->env_id, (void*) (va + j), perm | PTE_W)) < 0)
+			{
+				panic("error");
+			}
+			if(j >= filesz)
+			{
+				if(!(perm & PTE_W))
+				{
+					sys_page_map(curenv->env_id, (void*) (va + j),
+					curenv->env_id, (void*) (va + j), perm);
+				}
+				continue; // sys_page_alloc return a zero page
+			}
+			memmove((void*) (va + j), (void *)(_elf_buf + fileoffset + j),
+			MIN(PGSIZE, filesz - j));
+			if(!(perm & PTE_W))
+			{
+				sys_page_map(curenv->env_id, (void*) (va + j),
+				curenv->env_id, (void*) (va + j), perm);
+			}
+		}
+	}
+
+	curenv->env_tf.tf_eip = elf->e_entry;
+
+	return 0;
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -478,6 +596,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_ipc_recv((void *)a1);
 	case SYS_env_set_trapframe:
 		return sys_env_set_trapframe((envid_t)a1, (struct Trapframe *)a2);
+	case SYS_execv:
+		return sys_execv((void *)a1, (uint32_t)a2, (const char **)a3);
 	default:
 		return -E_INVAL;
 	}
